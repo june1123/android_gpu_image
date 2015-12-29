@@ -85,8 +85,10 @@ public class GPUImageTwoInputFilter extends GPUImageFilter {
                     if (bitmap == null || bitmap.isRecycled()) {
                         return;
                     }
-                    GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE3);
                     mFilterSourceTexture2 = OpenGlUtils.loadTexture(bitmap, OpenGlUtils.NO_TEXTURE, false);
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
                 }
             }
         });
@@ -114,12 +116,14 @@ public class GPUImageTwoInputFilter extends GPUImageFilter {
     @Override
     protected void onDrawArraysPre() {
         GLES20.glEnableVertexAttribArray(mFilterSecondTextureCoordinateAttribute);
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE3);
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, mFilterSourceTexture2);
-        GLES20.glUniform1i(mFilterInputTextureUniform2, 1);
+        GLES20.glUniform1i(mFilterInputTextureUniform2, 3);
 
         mTexture2CoordinatesBuffer.position(0);
         GLES20.glVertexAttribPointer(mFilterSecondTextureCoordinateAttribute, 2, GLES20.GL_FLOAT, false, 0, mTexture2CoordinatesBuffer);
+
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
     }
 
     public void setRotation(final Rotation rotation, final boolean flipHorizontal, final boolean flipVertical) {

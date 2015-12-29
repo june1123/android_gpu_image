@@ -25,7 +25,7 @@ import java.nio.FloatBuffer;
 import jp.co.cyberagent.android.gpuimage.OpenGlUtils;
 
 public class GPUImageYUVFilter extends GPUImageFilter{
-    public static final String NO_FILTER_VERTEX_SHADER = "" +
+    public static final String YUV_FILTER_VERTEX_SHADER = "" +
             "attribute vec4 position;\n" +
             "attribute vec4 inputTextureCoordinate;\n" +
             " \n" +
@@ -37,7 +37,7 @@ public class GPUImageYUVFilter extends GPUImageFilter{
             "    gl_Position = position;\n" +
             "    textureCoordinate = (uSTMatrix * inputTextureCoordinate).xy;\n" +
             "}";
-    public static final String NO_FILTER_FRAGMENT_SHADER = "" +
+    public static final String YUV_FILTER_FRAGMENT_SHADER = "" +
             "#extension GL_OES_EGL_image_external : require\n" +
             "varying highp vec2 textureCoordinate;\n" +
             " \n" +
@@ -52,7 +52,7 @@ public class GPUImageYUVFilter extends GPUImageFilter{
     protected final float[] mSTMatrix = new float[16];
 
     public GPUImageYUVFilter() {
-        super(NO_FILTER_VERTEX_SHADER, NO_FILTER_FRAGMENT_SHADER);
+        super(YUV_FILTER_VERTEX_SHADER, YUV_FILTER_FRAGMENT_SHADER);
     }
 
     @Override

@@ -96,6 +96,7 @@ public class GPUImageToneCurveFilter extends GPUImageFilter {
             GLES20.glActiveTexture(GLES20.GL_TEXTURE3);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, mToneCurveTexture[0]);
             GLES20.glUniform1i(mToneCurveTextureUniformLocation, 3);
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
         }
     }
 
@@ -183,6 +184,7 @@ public class GPUImageToneCurveFilter extends GPUImageFilter {
                     }
 
                     GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 256 /*width*/, 1 /*height*/, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, ByteBuffer.wrap(toneCurveByteArray));
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
                 }
 //        Buffer pixels!
 //        GLES20.glTexImage2D(int target,
