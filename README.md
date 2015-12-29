@@ -1,3 +1,8 @@
+This codes contains modifications from origin for my needs.
+
+Please check original repository. 
+https://github.com/CyberAgent/android-gpuimage
+
 # GPUImage for Android
 [![Build Status](https://api.travis-ci.org/CyberAgent/android-gpuimage.png?branch=master,develop)](https://travis-ci.org/CyberAgent/android-gpuimage)
 
