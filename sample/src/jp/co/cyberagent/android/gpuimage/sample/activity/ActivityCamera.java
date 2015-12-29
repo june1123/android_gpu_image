@@ -20,7 +20,6 @@ import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.hardware.Camera;
-import android.hardware.Camera.CameraInfo;
 import android.hardware.Camera.Parameters;
 import android.net.Uri;
 import android.opengl.GLSurfaceView;
@@ -41,7 +40,9 @@ import java.util.Date;
 
 import jp.co.cyberagent.android.gpuimage.GPUImage;
 import jp.co.cyberagent.android.gpuimage.GPUImage.OnPictureSavedListener;
-import jp.co.cyberagent.android.gpuimage.GPUImageFilter;
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageFilter;
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageFilterGroup;
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageYUVFilter;
 import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools;
 import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools.FilterAdjuster;
 import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools.OnGpuImageFilterChosenListener;
@@ -175,7 +176,7 @@ public class ActivityCamera extends Activity implements OnSeekBarChangeListener,
                     }
                 });
     }
-
+    
     public static final int MEDIA_TYPE_IMAGE = 1;
     public static final int MEDIA_TYPE_VIDEO = 2;
 
@@ -216,7 +217,12 @@ public class ActivityCamera extends Activity implements OnSeekBarChangeListener,
         if (mFilter == null
                 || (filter != null && !mFilter.getClass().equals(filter.getClass()))) {
             mFilter = filter;
-            mGPUImage.setFilter(mFilter);
+
+            GPUImageFilterGroup gpuImageFilterGroup = new GPUImageFilterGroup();
+            gpuImageFilterGroup.addFilter(new GPUImageYUVFilter());
+            gpuImageFilterGroup.addFilter(mFilter);
+
+            mGPUImage.setFilter(gpuImageFilterGroup);
             mFilterAdjuster = new FilterAdjuster(mFilter);
         }
     }
@@ -271,8 +277,7 @@ public class ActivityCamera extends Activity implements OnSeekBarChangeListener,
                     ActivityCamera.this, mCurrentCameraId);
             CameraInfo2 cameraInfo = new CameraInfo2();
             mCameraHelper.getCameraInfo(mCurrentCameraId, cameraInfo);
-            boolean flipHorizontal = cameraInfo.facing == CameraInfo.CAMERA_FACING_FRONT;
-            mGPUImage.setUpCamera(mCameraInstance, orientation, flipHorizontal, false);
+            mGPUImage.setUpCamera(mCameraInstance, orientation, false, false);
         }
 
         /** A safe way to get an instance of the Camera object. */

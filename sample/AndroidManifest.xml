@@ -27,6 +27,10 @@
             android:name="jp.co.cyberagent.android.gpuimage.sample.activity.ActivityCamera"
             android:screenOrientation="portrait"
             android:theme="@style/AppTheme.NoActionBar" />
+        <activity
+            android:name="jp.co.cyberagent.android.gpuimage.sample.activity.ActivityVideo"
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.NoActionBar" />
     </application>
 
 </manifest>

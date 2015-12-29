@@ -28,11 +28,11 @@ import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.hardware.Camera;
 import android.media.ExifInterface;
+import android.media.MediaPlayer;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.opengl.GLSurfaceView;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
@@ -42,7 +42,9 @@ import android.view.WindowManager;
 import java.io.*;
 import java.net.URL;
 import java.util.List;
-import java.util.concurrent.Semaphore;
+
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageFilter;
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageYUVFilter;
 
 /**
  * The main accessor for GPUImage functionality. This class helps to do common
@@ -67,7 +69,8 @@ public class GPUImage {
         }
 
         mContext = context;
-        mFilter = new GPUImageFilter();
+        // mFilter = new GPUImageFilter();
+        mFilter = new GPUImageYUVFilter();
         mRenderer = new GPUImageRenderer(mFilter);
     }
 
@@ -129,12 +132,7 @@ public class GPUImage {
     public void setUpCamera(final Camera camera, final int degrees, final boolean flipHorizontal,
             final boolean flipVertical) {
         mGlSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.GINGERBREAD_MR1) {
-            setUpCameraGingerbread(camera);
-        } else {
-            camera.setPreviewCallback(mRenderer);
-            camera.startPreview();
-        }
+        setUpCameraGingerbread(camera);
         Rotation rotation = Rotation.NORMAL;
         switch (degrees) {
             case 90:
@@ -154,6 +152,12 @@ public class GPUImage {
     private void setUpCameraGingerbread(final Camera camera) {
         mRenderer.setUpSurfaceTexture(camera);
     }
+
+    public void setUpMediaPlayer(final MediaPlayer mediaPlayer) {
+        mGlSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
+        mRenderer.setUpSurfaceTexture(mediaPlayer);
+    }
+
 
     /**
      * Sets the filter which should be applied to the image which was (or will

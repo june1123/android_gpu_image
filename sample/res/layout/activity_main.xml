@@ -24,6 +24,13 @@
             android:layout_height="wrap_content"
             android:drawableTop="@android:drawable/ic_menu_camera"
             android:text="Camera" />
+
+        <Button
+            android:id="@+id/button_video"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:drawableTop="@android:drawable/ic_menu_camera"
+            android:text="Video" />
     </LinearLayout>
 
 </FrameLayout>

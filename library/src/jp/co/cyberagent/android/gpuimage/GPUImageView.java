@@ -36,6 +36,8 @@ import java.io.FileOutputStream;
 import java.nio.IntBuffer;
 import java.util.concurrent.Semaphore;
 
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageFilter;
+
 public class GPUImageView extends FrameLayout {
 
     private GLSurfaceView mGLSurfaceView;

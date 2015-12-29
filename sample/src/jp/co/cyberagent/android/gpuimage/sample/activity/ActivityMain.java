@@ -31,6 +31,7 @@ public class ActivityMain extends Activity implements OnClickListener {
         setContentView(R.layout.activity_main);
         findViewById(R.id.button_gallery).setOnClickListener(this);
         findViewById(R.id.button_camera).setOnClickListener(this);
+        findViewById(R.id.button_video).setOnClickListener(this);
     }
 
     @Override
@@ -41,6 +42,10 @@ public class ActivityMain extends Activity implements OnClickListener {
                 break;
             case R.id.button_camera:
                 startActivity(ActivityCamera.class);
+                break;
+
+            case R.id.button_video:
+                startActivity(ActivityVideo.class);
                 break;
 
             default:

@@ -23,9 +23,13 @@ import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.Camera.PreviewCallback;
 import android.hardware.Camera.Size;
+import android.media.MediaPlayer;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView.Renderer;
+import android.opengl.Matrix;
+import android.view.Surface;
 
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageFilter;
 import jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -41,9 +45,9 @@ import java.util.Queue;
 import static jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil.TEXTURE_NO_ROTATION;
 
 @TargetApi(11)
-public class GPUImageRenderer implements Renderer, PreviewCallback {
+public class GPUImageRenderer implements Renderer {
     public static final int NO_IMAGE = -1;
-    static final float CUBE[] = {
+    public static final float CUBE[] = {
             -1.0f, -1.0f,
             1.0f, -1.0f,
             -1.0f, 1.0f,
@@ -87,6 +91,8 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer();
         setRotation(Rotation.NORMAL, false, false);
+
+        Matrix.setIdentityM(mSTMatrix, 0);
     }
 
     @Override
@@ -109,15 +115,19 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
         }
     }
 
+    protected final float[] mSTMatrix = new float[16];
     @Override
     public void onDrawFrame(final GL10 gl) {
+        if (mSurfaceTexture != null) {
+            mSurfaceTexture.updateTexImage();
+            mSurfaceTexture.getTransformMatrix(mSTMatrix);
+            mFilter.updateTextureSTMatrix(mSTMatrix);
+        }
+
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
         runAll(mRunOnDraw);
         mFilter.onDraw(mGLTextureId, mGLCubeBuffer, mGLTextureBuffer);
         runAll(mRunOnDrawEnd);
-        if (mSurfaceTexture != null) {
-            mSurfaceTexture.updateTexImage();
-        }
     }
 
     private void runAll(Queue<Runnable> queue) {
@@ -125,31 +135,6 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
             while (!queue.isEmpty()) {
                 queue.poll().run();
             }
-        }
-    }
-
-    @Override
-    public void onPreviewFrame(final byte[] data, final Camera camera) {
-        final Size previewSize = camera.getParameters().getPreviewSize();
-        if (mGLRgbBuffer == null) {
-            mGLRgbBuffer = IntBuffer.allocate(previewSize.width * previewSize.height);
-        }
-        if (mRunOnDraw.isEmpty()) {
-            runOnDraw(new Runnable() {
-                @Override
-                public void run() {
-                    GPUImageNativeLibrary.YUVtoRBGA(data, previewSize.width, previewSize.height,
-                            mGLRgbBuffer.array());
-                    mGLTextureId = OpenGlUtils.loadTexture(mGLRgbBuffer, previewSize, mGLTextureId);
-                    camera.addCallbackBuffer(data);
-
-                    if (mImageWidth != previewSize.width) {
-                        mImageWidth = previewSize.width;
-                        mImageHeight = previewSize.height;
-                        adjustImageScaling();
-                    }
-                }
-            });
         }
     }
 
@@ -162,14 +147,58 @@ public class GPUImageRenderer implements Renderer, PreviewCallback {
                 mSurfaceTexture = new SurfaceTexture(textures[0]);
                 try {
                     camera.setPreviewTexture(mSurfaceTexture);
-                    camera.setPreviewCallback(GPUImageRenderer.this);
                     camera.startPreview();
+
+                    final Size previewSize = camera.getParameters().getPreviewSize();
+                    if (mImageWidth != previewSize.width) {
+                        mImageWidth = previewSize.width;
+                        mImageHeight = previewSize.height;
+                        adjustImageScaling();
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
         });
     }
+
+    public void setUpSurfaceTexture(final MediaPlayer mediaPlayer) {
+        runOnDraw(new Runnable() {
+            @Override
+            public void run() {
+                int[] textures = new int[1];
+                GLES20.glGenTextures(1, textures, 0);
+                mSurfaceTexture = new SurfaceTexture(textures[0]);
+                try {
+                    mSurfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
+                        @Override
+                        public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+                            synchronized (GPUImageRenderer.this) {
+                                updateSurfaceForMediaPlayer = true;
+                            }
+                        }
+                    });
+                    Surface surface = new Surface(mSurfaceTexture);
+                    mediaPlayer.setSurface(surface);
+                    mediaPlayer.prepare();
+                    synchronized (GPUImageRenderer.this) {
+                        updateSurfaceForMediaPlayer = false;
+                    }
+
+                    mImageWidth = mediaPlayer.getVideoWidth();
+                    mImageHeight = mediaPlayer.getVideoHeight();
+                    adjustImageScaling();
+
+                    mediaPlayer.start();
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
+            }
+        });
+    }
+
+    // TODO check is it needs??
+    private boolean updateSurfaceForMediaPlayer = false;
 
     public void setFilter(final GPUImageFilter filter) {
         runOnDraw(new Runnable() {

@@ -16,9 +16,11 @@
 
 package jp.co.cyberagent.android.gpuimage.sample.activity;
 
-import jp.co.cyberagent.android.gpuimage.GPUImageFilter;
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageFilter;
 import jp.co.cyberagent.android.gpuimage.GPUImageView;
 import jp.co.cyberagent.android.gpuimage.GPUImageView.OnPictureSavedListener;
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageFilterGroup;
+import jp.co.cyberagent.android.gpuimage.filter.GPUImageYUVFilter;
 import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools;
 import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools.FilterAdjuster;
 import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools.OnGpuImageFilterChosenListener;
@@ -112,7 +114,12 @@ public class ActivityGallery extends Activity implements OnSeekBarChangeListener
         if (mFilter == null
                 || (filter != null && !mFilter.getClass().equals(filter.getClass()))) {
             mFilter = filter;
-            mGPUImageView.setFilter(mFilter);
+
+            GPUImageFilterGroup gpuImageFilterGroup = new GPUImageFilterGroup();
+            gpuImageFilterGroup.addFilter(new GPUImageFilter());
+            gpuImageFilterGroup.addFilter(mFilter);
+
+            mGPUImageView.setFilter(gpuImageFilterGroup);
             mFilterAdjuster = new FilterAdjuster(mFilter);
 
             findViewById(R.id.seekBar).setVisibility(
