@@ -1,4 +1,4 @@
-This codes contains modifications from origin for my needs.
+It contains modifications from origin for my needs.
 
 Please check original repository. 
 https://github.com/CyberAgent/android-gpuimage
