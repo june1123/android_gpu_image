@@ -116,6 +116,7 @@ public class GPUImageRenderer implements Renderer {
     }
 
     protected final float[] mSTMatrix = new float[16];
+
     @Override
     public void onDrawFrame(final GL10 gl) {
         if (mSurfaceTexture != null) {
@@ -162,6 +163,19 @@ public class GPUImageRenderer implements Renderer {
         });
     }
 
+    public void setInputSurfaceTexture(SurfaceTexture surfaceTexture, int width, int height) {
+        this.mSurfaceTexture = surfaceTexture;
+        if (mImageWidth != width || mImageHeight != height) {
+            mImageWidth = width;
+            mImageHeight = height;
+            adjustImageScaling();
+        }
+    }
+
+    public SurfaceTexture getInputSurfaceTexture() {
+        return mSurfaceTexture;
+    }
+
     public void setUpSurfaceTexture(final MediaPlayer mediaPlayer) {
         runOnDraw(new Runnable() {
             @Override
@@ -170,20 +184,9 @@ public class GPUImageRenderer implements Renderer {
                 GLES20.glGenTextures(1, textures, 0);
                 mSurfaceTexture = new SurfaceTexture(textures[0]);
                 try {
-                    mSurfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
-                        @Override
-                        public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-                            synchronized (GPUImageRenderer.this) {
-                                updateSurfaceForMediaPlayer = true;
-                            }
-                        }
-                    });
                     Surface surface = new Surface(mSurfaceTexture);
                     mediaPlayer.setSurface(surface);
                     mediaPlayer.prepare();
-                    synchronized (GPUImageRenderer.this) {
-                        updateSurfaceForMediaPlayer = false;
-                    }
 
                     mImageWidth = mediaPlayer.getVideoWidth();
                     mImageHeight = mediaPlayer.getVideoHeight();

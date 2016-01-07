@@ -22,6 +22,9 @@ import android.content.DialogInterface;
 import android.graphics.BitmapFactory;
 import android.graphics.PointF;
 
+import java.util.LinkedList;
+import java.util.List;
+
 import jp.co.cyberagent.android.gpuimage.filter.GPUImage3x3ConvolutionFilter;
 import jp.co.cyberagent.android.gpuimage.filter.GPUImage3x3TextureSamplingFilter;
 import jp.co.cyberagent.android.gpuimage.filter.GPUImageAddBlendFilter;
@@ -95,9 +98,6 @@ import jp.co.cyberagent.android.gpuimage.filter.GPUImageTwoInputFilter;
 import jp.co.cyberagent.android.gpuimage.filter.GPUImageVignetteFilter;
 import jp.co.cyberagent.android.gpuimage.filter.GPUImageWeakPixelInclusionFilter;
 import jp.co.cyberagent.android.gpuimage.filter.GPUImageWhiteBalanceFilter;
-
-import java.util.LinkedList;
-import java.util.List;
 
 public class GPUImageFilterTools {  
     public static void showDialog(final Context context,

@@ -9,6 +9,7 @@ import android.util.Log;
 
 import jp.co.cyberagent.android.gpuimage.sample.R;
 
+
 public class MediaPlayerSurfaceStubActivity extends Activity {
 
 	private static final String TAG = "MediaPlayerSurfaceStubActivity";

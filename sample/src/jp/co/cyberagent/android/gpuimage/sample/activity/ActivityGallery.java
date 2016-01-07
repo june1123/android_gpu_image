@@ -25,6 +25,7 @@ import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools;
 import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools.FilterAdjuster;
 import jp.co.cyberagent.android.gpuimage.sample.GPUImageFilterTools.OnGpuImageFilterChosenListener;
 import jp.co.cyberagent.android.gpuimage.sample.R;
+
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;

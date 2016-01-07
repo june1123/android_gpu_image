@@ -32,8 +32,10 @@ import javax.microedition.khronos.egl.EGLSurface;
 import javax.microedition.khronos.opengles.GL10;
 
 import android.graphics.Bitmap;
+import android.opengl.EGL14;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
+import android.view.Surface;
 
 public class PixelBuffer {
     final static String TAG = "PixelBuffer";
@@ -68,12 +70,11 @@ public class PixelBuffer {
         mEGL = (EGL10) EGLContext.getEGL();
         mEGLDisplay = mEGL.eglGetDisplay(EGL_DEFAULT_DISPLAY);
         mEGL.eglInitialize(mEGLDisplay, version);
-        mEGLConfig = chooseConfig(); // Choosing a config is a little more
+        mEGLConfig = chooseConfig(false); // Choosing a config is a little more
                                      // complicated
 
         // mEGLContext = mEGL.eglCreateContext(mEGLDisplay, mEGLConfig,
         // EGL_NO_CONTEXT, null);
-        int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
         int[] attrib_list = {
                 EGL_CONTEXT_CLIENT_VERSION, 2,
                 EGL10.EGL_NONE
@@ -81,6 +82,42 @@ public class PixelBuffer {
         mEGLContext = mEGL.eglCreateContext(mEGLDisplay, mEGLConfig, EGL_NO_CONTEXT, attrib_list);
 
         mEGLSurface = mEGL.eglCreatePbufferSurface(mEGLDisplay, mEGLConfig, attribList);
+        mEGL.eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext);
+
+        mGL = (GL10) mEGLContext.getGL();
+
+        // Record thread owner of OpenGL context
+        mThreadOwner = Thread.currentThread().getName();
+    }
+
+    static final int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
+
+    public PixelBuffer(final Surface recordSurface, int width, int height) {
+        mWidth = width;
+        mHeight = height;
+
+        int[] version = new int[2];
+        int[] attrib_list = {
+                EGL_CONTEXT_CLIENT_VERSION, 2,
+                EGL10.EGL_NONE
+        };
+
+        // No error checking performed, minimum required code to elucidate logic
+        mEGL = (EGL10) EGLContext.getEGL();
+        mEGLDisplay = mEGL.eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        mEGL.eglInitialize(mEGLDisplay, version);
+        mEGLConfig = chooseConfig(true); // Choosing a config is a little more
+        // complicated
+
+        // mEGLContext = mEGL.eglCreateContext(mEGLDisplay, mEGLConfig,
+        // EGL_NO_CONTEXT, null);
+
+        int[] surfaceAttribs = {
+                EGL14.EGL_NONE
+        };
+        mEGLContext = mEGL.eglCreateContext(mEGLDisplay, mEGLConfig, EGL_NO_CONTEXT, attrib_list);
+
+        mEGLSurface = mEGL.eglCreateWindowSurface(mEGLDisplay, mEGLConfig, recordSurface, surfaceAttribs);
         mEGL.eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext);
 
         mGL = (GL10) mEGLContext.getGL();
@@ -101,6 +138,20 @@ public class PixelBuffer {
         // Call the renderer initialization routines
         mRenderer.onSurfaceCreated(mGL, mEGLConfig);
         mRenderer.onSurfaceChanged(mGL, mWidth, mHeight);
+    }
+
+    public void makeCurrent(){
+        if (mEGLDisplay == EGL10.EGL_NO_DISPLAY) {
+            // called makeCurrent() before create?
+            Log.d(TAG, "NOTE: makeCurrent w/o display");
+        }
+        if (!mEGL.eglMakeCurrent(mEGLDisplay, mEGLSurface, mEGLSurface, mEGLContext)) {
+            throw new RuntimeException("eglMakeCurrent failed");
+        }
+    }
+
+    public void swapBuffer(long presentationTime) {
+        mEGL.eglSwapBuffers(mEGLDisplay, mEGLSurface);
     }
 
     public Bitmap getBitmap() {
@@ -124,6 +175,25 @@ public class PixelBuffer {
         return mBitmap;
     }
 
+    public void doDrawSimple() {
+        // Do we have a renderer?
+        if (mRenderer == null) {
+            Log.e(TAG, "getBitmap: Renderer was not set.");
+            return;
+        }
+
+        // Does this thread own the OpenGL context?
+        if (!Thread.currentThread().getName().equals(mThreadOwner)) {
+            Log.e(TAG, "getBitmap: This thread does not own the OpenGL context.");
+            return;
+        }
+
+        // Call the renderer draw routine (it seems that some filters do not
+        // work if this is only called once)
+        mRenderer.onDrawFrame(mGL);
+        //mRenderer.onDrawFrame(mGL);
+    }
+
     public void destroy() {
         mRenderer.onDrawFrame(mGL);
         mRenderer.onDrawFrame(mGL);
@@ -135,7 +205,10 @@ public class PixelBuffer {
         mEGL.eglTerminate(mEGLDisplay);
     }
 
-    private EGLConfig chooseConfig() {
+    // Android-specific extension.
+    private static final int EGL_RECORDABLE_ANDROID = 0x3142;
+
+    private EGLConfig chooseConfig(boolean recordable) {
         int[] attribList = new int[] {
                 EGL_DEPTH_SIZE, 0,
                 EGL_STENCIL_SIZE, 0,
@@ -144,8 +217,14 @@ public class PixelBuffer {
                 EGL_BLUE_SIZE, 8,
                 EGL_ALPHA_SIZE, 8,
                 EGL10.EGL_RENDERABLE_TYPE, 4,
-                EGL_NONE
+                EGL10.EGL_NONE, 0,      // placeholder for recordable [@-3]
+                EGL10.EGL_NONE
         };
+
+        if (recordable) {
+            attribList[attribList.length - 3] = EGL_RECORDABLE_ANDROID;
+            attribList[attribList.length - 2] = 1;
+        }
 
         // No error checking performed, minimum required code to elucidate logic
         // Expand on this logic to be more selective in choosing a configuration
@@ -205,5 +284,13 @@ public class PixelBuffer {
 
         mBitmap = Bitmap.createBitmap(mWidth, mHeight, Bitmap.Config.ARGB_8888);
         mBitmap.copyPixelsFromBuffer(IntBuffer.wrap(iat));
+    }
+
+    public int getWidth() {
+        return mWidth;
+    }
+
+    public int getHeight() {
+        return mHeight;
     }
 }
