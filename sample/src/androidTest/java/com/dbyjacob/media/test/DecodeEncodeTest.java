@@ -15,6 +15,7 @@ import android.view.Surface;
 import com.android.grafika.TextureMovieEncoder2;
 import com.android.grafika.VideoEncoderCore;
 import com.android.grafika.gles.EglCore;
+import com.android.grafika.gles.WindowSurface;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -120,11 +121,9 @@ public class DecodeEncodeTest extends AndroidTestCase {
             }
 
             // Could use width/height from the MediaFormat to get full-size frames.
-            outputSurface = setupEncoder(new File(dstFilePath));
-            pixelBuffer = new PixelBuffer(outputSurface, saveWidth, saveHeight);
-
-            EglCore mEglCore = new EglCore(null, EglCore.FLAG_RECORDABLE | EglCore.FLAG_TRY_GLES3);
-            pixelBuffer.setRenderer(gpuImageRenderer);
+            setupEncoder(new File(dstFilePath));
+            gpuImageRenderer.onSurfaceCreated(null, null);
+            gpuImageRenderer.onSurfaceChanged(null, saveWidth, saveHeight);
 
             // Create a MediaCodec decoder, and configure it with the MediaFormat from the
             // extractor.  It's very important to use the format from the extractor because
@@ -137,7 +136,7 @@ public class DecodeEncodeTest extends AndroidTestCase {
             SurfaceTexture surfaceTexture = new SurfaceTexture(textures[0]);
 
             gpuImageRenderer.setInputSurfaceTexture(surfaceTexture, saveWidth, saveHeight);
-            PixelBufferWrap pixelBufferWrap = new PixelBufferWrap(pixelBuffer, surfaceTexture);
+            PixelBufferWrap pixelBufferWrap = new PixelBufferWrap(gpuImageRenderer, saveWidth, saveHeight, surfaceTexture);
             Surface surface = new Surface(surfaceTexture);
             decoder.configure(format, surface, null, 0);
             decoder.start();
@@ -290,10 +289,14 @@ public class DecodeEncodeTest extends AndroidTestCase {
                     decoder.releaseOutputBuffer(decoderStatus, doRender);
                     if (doRender) {
                         if (VERBOSE) Log.d(TAG, "awaiting decode of frame " + decodeCount);
+
+                        mInputWindowSurface.makeCurrent();
                         pixelBufferWrap.awaitNewImage();
                         pixelBufferWrap.drawImage();
                         mVideoEncoder.frameAvailableSoon();
-                        pixelBufferWrap.swapBuffer(info.presentationTimeUs);
+                        mInputWindowSurface.setPresentationTime(info.presentationTimeUs);
+                        mInputWindowSurface.swapBuffers();
+                        mEglCore.makeNothingCurrent();
 
                         if( false ) {
                             File debugDir = new File(Environment.getExternalStorageDirectory(), "debug");
@@ -324,19 +327,19 @@ public class DecodeEncodeTest extends AndroidTestCase {
 
     class PixelBufferWrap implements SurfaceTexture.OnFrameAvailableListener {
 
-        private PixelBuffer pixelBuffer;
         private ByteBuffer mPixelBuf;                       // used by saveFrame()
+        private GPUImageRenderer gpuImageRenderer;
         private boolean frameAvailable = false;
         private Object frameSyncObject = new Object();
         private int mWidth;
         private int mHeight;
 
-        public PixelBufferWrap(PixelBuffer pixelBuffer, SurfaceTexture surfaceTexture) {
-            this.pixelBuffer = pixelBuffer;
+        public PixelBufferWrap(GPUImageRenderer gpuImageRenderer, int width, int height, SurfaceTexture surfaceTexture) {
             setFrameAvailableListener(surfaceTexture);
 
-            mWidth = pixelBuffer.getWidth();
-            mHeight = pixelBuffer.getHeight();
+            this.gpuImageRenderer = gpuImageRenderer;
+            mWidth = width;
+            mHeight = height;
 
             mPixelBuf = ByteBuffer.allocateDirect(mWidth * mHeight * 4);
             mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
@@ -373,11 +376,7 @@ public class DecodeEncodeTest extends AndroidTestCase {
         }
 
         public void drawImage() {
-            pixelBuffer.doDrawSimple();
-        }
-
-        public void swapBuffer(long presentationTime) {
-            pixelBuffer.swapBuffer(presentationTime);
+            gpuImageRenderer.onDrawFrame(null);
         }
 
         // SurfaceTexture callback
@@ -454,8 +453,10 @@ public class DecodeEncodeTest extends AndroidTestCase {
     // For encoder
 
     private TextureMovieEncoder2 mVideoEncoder;
+    private WindowSurface mInputWindowSurface;
+    private EglCore mEglCore;
 
-    private Surface setupEncoder(File outputFile) {
+    private void setupEncoder(File outputFile) {
         Log.d(TAG, "starting to record");
         // Record at 1280x720, regardless of the window dimensions.  The encoder may
         // explode if given "strange" dimensions, e.g. a width that is not a multiple
@@ -471,8 +472,9 @@ public class DecodeEncodeTest extends AndroidTestCase {
         } catch (IOException ioe) {
             throw new RuntimeException(ioe);
         }
-        mVideoEncoder = new TextureMovieEncoder2(encoderCore);
-        return encoderCore.getInputSurface();
 
+        mEglCore = new EglCore(null, EglCore.FLAG_RECORDABLE);
+        mInputWindowSurface = new WindowSurface(mEglCore, encoderCore.getInputSurface(), true);
+        mVideoEncoder = new TextureMovieEncoder2(encoderCore);
     }
 }
