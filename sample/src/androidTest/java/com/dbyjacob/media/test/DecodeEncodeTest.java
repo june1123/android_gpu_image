@@ -39,7 +39,7 @@ import jp.co.cyberagent.android.gpuimage.filter.GPUImageYUVFilter;
  */
 public class DecodeEncodeTest extends AndroidTestCase {
     public static final boolean VERBOSE = true;           // lots of logging
-    public static final String TAG = "tag";
+    public static final String TAG = "DecodeEncodeTest";
 
     private GPUImageFilter mFilter;
 
@@ -72,13 +72,11 @@ public class DecodeEncodeTest extends AndroidTestCase {
         return new File(Environment.getExternalStorageDirectory(), "debug");
     }
 
-
-
     private void testEncode(String sourceFilePath, String dstFilePath) {
 
         GPUImageRenderer renderer = new GPUImageRenderer(mFilter);
         renderer.setRotation(Rotation.NORMAL,
-                renderer.isFlippedHorizontally(), renderer.isFlippedVertically());
+                false, false);
         renderer.setScaleType(GPUImage.ScaleType.CENTER_INSIDE);
 
         try {
@@ -119,50 +117,36 @@ public class DecodeEncodeTest extends AndroidTestCase {
                 Log.d(TAG, "Video size is " + format.getInteger(MediaFormat.KEY_WIDTH) + "x" +
                         format.getInteger(MediaFormat.KEY_HEIGHT));
             }
-
-            // Could use width/height from the MediaFormat to get full-size frames.
-            setupEncoder(new File(dstFilePath));
-            gpuImageRenderer.onSurfaceCreated(null, null);
-            gpuImageRenderer.onSurfaceChanged(null, saveWidth, saveHeight);
-
             // Create a MediaCodec decoder, and configure it with the MediaFormat from the
             // extractor.  It's very important to use the format from the extractor because
             // it contains a copy of the CSD-0/CSD-1 codec-specific data chunks.
             String mime = format.getString(MediaFormat.KEY_MIME);
             decoder = MediaCodec.createDecoderByType(mime);
 
+            // Could use width/height from the MediaFormat to get full-size frames.
+            setupEncoder(new File(dstFilePath), saveWidth, saveHeight);
+            mInputWindowSurface.makeCurrent();
+
+            gpuImageRenderer.onSurfaceCreated(null, null);
+            gpuImageRenderer.onSurfaceChanged(null, saveWidth, saveHeight);
+
             int[] textures = new int[1];
             GLES20.glGenTextures(1, textures, 0);
             SurfaceTexture surfaceTexture = new SurfaceTexture(textures[0]);
 
             gpuImageRenderer.setInputSurfaceTexture(surfaceTexture, saveWidth, saveHeight);
-            PixelBufferWrap pixelBufferWrap = new PixelBufferWrap(gpuImageRenderer, saveWidth, saveHeight, surfaceTexture);
+            DecodeContext pixelBufferWrap = new DecodeContext(gpuImageRenderer, saveWidth, saveHeight);
             Surface surface = new Surface(surfaceTexture);
             decoder.configure(format, surface, null, 0);
             decoder.start();
 
             try {
-//                SparseIntArray muxerTrackIndexMap = new SparseIntArray(extractor.getTrackCount());
-//                MediaMuxer mediaMuxer = new MediaMuxer(dstFilePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-//
-//                // Set up the tracks.
-//                for (int i = 0; i < extractor.getTrackCount(); i++) {
-//                    if( i != trackIndex ) {
-//                        MediaFormat trackFormat = extractor.getTrackFormat(i);
-//                        mediaMuxer.addTrack(trackFormat);
-//
-//                    }
-//                }
-
                 doExtract(extractor, null, trackIndex, decoder, pixelBufferWrap);
             } catch (IOException e) {
                 e.printStackTrace();
             }
 
         } finally {
-            if( mVideoEncoder != null ) {
-                mVideoEncoder.stopRecording();
-            }
 
             if( outputSurface != null ) {
                 outputSurface.release();
@@ -180,6 +164,10 @@ public class DecodeEncodeTest extends AndroidTestCase {
             if (extractor != null) {
                 extractor.release();
                 extractor = null;
+            }
+
+            if( mVideoEncoder != null ) {
+                mVideoEncoder.stopRecording();
             }
         }
     }
@@ -205,7 +193,7 @@ public class DecodeEncodeTest extends AndroidTestCase {
      * Work loop.
      */
     private void doExtract(MediaExtractor extractor, MediaMuxer mediaMuxer, int videoTrackIndex, MediaCodec decoder,
-                          PixelBufferWrap pixelBufferWrap) throws IOException {
+                           DecodeContext decodeContext) throws IOException {
 
         final int TIMEOUT_USEC = 10000;
         ByteBuffer[] decoderInputBuffers = decoder.getInputBuffers();
@@ -291,8 +279,8 @@ public class DecodeEncodeTest extends AndroidTestCase {
                         if (VERBOSE) Log.d(TAG, "awaiting decode of frame " + decodeCount);
 
                         mInputWindowSurface.makeCurrent();
-                        pixelBufferWrap.awaitNewImage();
-                        pixelBufferWrap.drawImage();
+                        decodeContext.awaitNewImage();
+                        decodeContext.drawImage();
                         mVideoEncoder.frameAvailableSoon();
                         mInputWindowSurface.setPresentationTime(info.presentationTimeUs);
                         mInputWindowSurface.swapBuffers();
@@ -304,7 +292,7 @@ public class DecodeEncodeTest extends AndroidTestCase {
                             File outputFile = new File(debugDir,
                                     String.format("frame-%02d.png", decodeCount));
                             long startWhen = System.nanoTime();
-                            pixelBufferWrap.saveFrame(outputFile.toString());
+                            decodeContext.saveFrame(outputFile.toString());
                             frameSaveTime += System.nanoTime() - startWhen;
                         }
                         decodeCount++;
@@ -314,18 +302,7 @@ public class DecodeEncodeTest extends AndroidTestCase {
         }
     }
 
-    private void fillOtherChannel(MediaExtractor extractor, MediaMuxer mediaMuxer, int videoTrackIndex) {
-        int trackCount = extractor.getTrackCount();
-
-        //int sampleSize = extractor.readSampleData(null, 0);
-
-        extractor.selectTrack(0);
-        MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-        bufferInfo.presentationTimeUs = extractor.getSampleTime();
-
-    }
-
-    class PixelBufferWrap implements SurfaceTexture.OnFrameAvailableListener {
+    class DecodeContext implements SurfaceTexture.OnFrameAvailableListener {
 
         private ByteBuffer mPixelBuf;                       // used by saveFrame()
         private GPUImageRenderer gpuImageRenderer;
@@ -334,8 +311,7 @@ public class DecodeEncodeTest extends AndroidTestCase {
         private int mWidth;
         private int mHeight;
 
-        public PixelBufferWrap(GPUImageRenderer gpuImageRenderer, int width, int height, SurfaceTexture surfaceTexture) {
-            setFrameAvailableListener(surfaceTexture);
+        public DecodeContext(GPUImageRenderer gpuImageRenderer, int width, int height) {
 
             this.gpuImageRenderer = gpuImageRenderer;
             mWidth = width;
@@ -343,6 +319,8 @@ public class DecodeEncodeTest extends AndroidTestCase {
 
             mPixelBuf = ByteBuffer.allocateDirect(mWidth * mHeight * 4);
             mPixelBuf.order(ByteOrder.LITTLE_ENDIAN);
+
+            setFrameAvailableListener(gpuImageRenderer.getInputSurfaceTexture());
         }
 
         private void setFrameAvailableListener(SurfaceTexture surfaceTexture) {
@@ -456,14 +434,14 @@ public class DecodeEncodeTest extends AndroidTestCase {
     private WindowSurface mInputWindowSurface;
     private EglCore mEglCore;
 
-    private void setupEncoder(File outputFile) {
+    private void setupEncoder(File outputFile, int width, int height) {
         Log.d(TAG, "starting to record");
         // Record at 1280x720, regardless of the window dimensions.  The encoder may
         // explode if given "strange" dimensions, e.g. a width that is not a multiple
         // of 16.  We can box it as needed to preserve dimensions.
         final int BIT_RATE = 4000000;   // 4Mbps
-        final int VIDEO_WIDTH = 1280;
-        final int VIDEO_HEIGHT = 720;
+        final int VIDEO_WIDTH = width;
+        final int VIDEO_HEIGHT = height;
 
         VideoEncoderCore encoderCore;
         try {
