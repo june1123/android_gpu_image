@@ -278,13 +278,19 @@ public class DecodeEncodeTest extends AndroidTestCase {
                     if (doRender) {
                         if (VERBOSE) Log.d(TAG, "awaiting decode of frame " + decodeCount);
 
+                        mVideoEncoder.frameAvailableSoon();
                         mInputWindowSurface.makeCurrent();
                         decodeContext.awaitNewImage();
                         decodeContext.drawImage();
-                        mVideoEncoder.frameAvailableSoon();
+
+
+
                         mInputWindowSurface.setPresentationTime(info.presentationTimeUs);
                         mInputWindowSurface.swapBuffers();
+
                         mEglCore.makeNothingCurrent();
+
+                        if (VERBOSE) Log.d(TAG, "swap for encode of frame " + decodeCount);
 
                         if( false ) {
                             File debugDir = new File(Environment.getExternalStorageDirectory(), "debug");
@@ -336,6 +342,7 @@ public class DecodeEncodeTest extends AndroidTestCase {
 
                 while (!frameAvailable) {
                     try {
+
                         // Wait for onFrameAvailable() to signal us.  Use a timeout to avoid
                         // stalling the test if it doesn't arrive.
                         frameSyncObject.wait(TIMEOUT_MS);

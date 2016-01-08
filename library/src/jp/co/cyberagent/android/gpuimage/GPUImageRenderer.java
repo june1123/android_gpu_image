@@ -120,7 +120,7 @@ public class GPUImageRenderer implements Renderer {
     @Override
     public void onDrawFrame(final GL10 gl) {
         if (mSurfaceTexture != null) {
-            mSurfaceTexture.updateTexImage();
+            // mSurfaceTexture.updateTexImage();
             mSurfaceTexture.getTransformMatrix(mSTMatrix);
             mFilter.updateTextureSTMatrix(mSTMatrix);
         }
