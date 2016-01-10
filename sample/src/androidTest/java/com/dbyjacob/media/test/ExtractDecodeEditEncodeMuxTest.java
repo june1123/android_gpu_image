@@ -999,7 +999,7 @@ public class ExtractDecodeEditEncodeMuxTest extends AndroidTestCase {
                 if ((videoEncoderOutputBufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG)
                         != 0) {
                     if (VERBOSE) Log.d(TAG, "video encoder: codec config buffer");
-                    // Simply ignore codec config buffers.
+                    // Simply ignore codec config buffer s.
                     videoEncoder.releaseOutputBuffer(encoderOutputBufferIndex, false);
                     break;
                 }

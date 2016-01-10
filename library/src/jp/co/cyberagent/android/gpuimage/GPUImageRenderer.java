@@ -120,7 +120,7 @@ public class GPUImageRenderer implements Renderer {
     @Override
     public void onDrawFrame(final GL10 gl) {
         if (mSurfaceTexture != null) {
-            // mSurfaceTexture.updateTexImage();
+            mSurfaceTexture.updateTexImage();
             mSurfaceTexture.getTransformMatrix(mSTMatrix);
             mFilter.updateTextureSTMatrix(mSTMatrix);
         }
@@ -149,6 +149,12 @@ public class GPUImageRenderer implements Renderer {
                 try {
                     camera.setPreviewTexture(mSurfaceTexture);
                     camera.startPreview();
+                    mSurfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
+                        @Override
+                        public void onFrameAvailable(SurfaceTexture surfaceTexture) {
+                            surfaceTexture.updateTexImage();
+                        }
+                    });
 
                     final Size previewSize = camera.getParameters().getPreviewSize();
                     if (mImageWidth != previewSize.width) {
@@ -199,9 +205,6 @@ public class GPUImageRenderer implements Renderer {
             }
         });
     }
-
-    // TODO check is it needs??
-    private boolean updateSurfaceForMediaPlayer = false;
 
     public void setFilter(final GPUImageFilter filter) {
         runOnDraw(new Runnable() {
