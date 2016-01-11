@@ -68,7 +68,7 @@ public class AudioSoftwarePoller {
         return US_PER_FRAME;
     }
 
-    public void recycleInputBuffer(byte[] buffer){
+    public void  recycleInputBuffer(byte[] buffer){
         recorderTask.data_buffer.offer(buffer);
     }
 

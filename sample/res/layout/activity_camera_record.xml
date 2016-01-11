@@ -59,5 +59,10 @@
         android:layout_alignParentRight="true"
         android:textColor="@android:color/white"/>
 
+    <SurfaceView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/media_player"/>
+
 
 </RelativeLayout>

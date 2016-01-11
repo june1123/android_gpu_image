@@ -22,6 +22,7 @@ import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.Camera.Parameters;
+import android.media.MediaPlayer;
 import android.opengl.GLES20;
 import android.opengl.Matrix;
 import android.os.Bundle;
@@ -43,6 +44,7 @@ import android.widget.SeekBar.OnSeekBarChangeListener;
 import android.widget.TextView;
 
 import com.android.grafika.TextureMovieEncoder2;
+import com.android.grafika.VideoAudioEncoderCore;
 import com.android.grafika.VideoEncoderCore;
 import com.android.grafika.gles.EglCore;
 import com.android.grafika.gles.FullFrameRect;
@@ -79,6 +81,7 @@ public class ActivityCameraRecording extends Activity implements OnSeekBarChange
     private GPUImageFilter mFilter;
     private FilterAdjuster mFilterAdjuster;
 
+    private SurfaceView mediaPlayerSurfaceView;
 
     @Override
     public void onCreate(final Bundle savedInstanceState) {
@@ -102,6 +105,9 @@ public class ActivityCameraRecording extends Activity implements OnSeekBarChange
         if (!mCameraHelper.hasFrontCamera() || !mCameraHelper.hasBackCamera()) {
             cameraSwitchView.setVisibility(View.GONE);
         }
+
+        mediaPlayerSurfaceView = (SurfaceView) findViewById(R.id.media_player);
+        mediaPlayerSurfaceView.setVisibility(View.GONE);
     }
 
     @Override
@@ -161,6 +167,56 @@ public class ActivityCameraRecording extends Activity implements OnSeekBarChange
             updateControls();
             rh.setRecordingEnabled(mRecordingEnabled);
         }
+
+        if( !mRecordingEnabled ) {
+            mediaPlayerSurfaceView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    playVideo();
+                }
+            }, 2000);
+
+        }
+    }
+
+    private void playVideo() {
+        final MediaPlayer mediaPlayer = new MediaPlayer();
+        try {
+            mediaPlayer.setDataSource(outputFile.getAbsolutePath());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        mediaPlayerSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                Surface surface = holder.getSurface();
+                mediaPlayer.setSurface(surface);
+                try {
+                    mediaPlayer.prepare();
+                    mediaPlayer.start();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                mediaPlayerSurfaceView.getHolder().removeCallback(this);
+                mediaPlayer.stop();
+            }
+        });
+        mediaPlayerSurfaceView.setVisibility(View.VISIBLE);
+        mediaPlayerSurfaceView.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mediaPlayerSurfaceView.setVisibility(View.GONE);
+            }
+        });
     }
 
     public static final int MEDIA_TYPE_IMAGE = 1;
@@ -316,6 +372,7 @@ public class ActivityCameraRecording extends Activity implements OnSeekBarChange
         return refreshNs;
     }
 
+    private File outputFile;
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         Log.d(TAG, "surfaceCreated holder=" + holder);
@@ -325,7 +382,7 @@ public class ActivityCameraRecording extends Activity implements OnSeekBarChange
             outputDir.mkdirs();
         }
 
-        File outputFile = new File(outputDir, "fbo-gl-recording.mp4");
+        outputFile = new File(outputDir, "fbo-gl-recording.mp4");
         SurfaceView sv = (SurfaceView) findViewById(R.id.surfaceView);
         mRenderThread = new RenderThread(sv.getHolder(), new ActivityHandler(this), outputFile,
                 getDisplayRefreshNsec(this));
@@ -834,9 +891,9 @@ public class ActivityCameraRecording extends Activity implements OnSeekBarChange
                     " to +" + offX + ",+" + offY + " " +
                     mVideoRect.width() + "x" + mVideoRect.height());
 
-            VideoEncoderCore encoderCore;
+            VideoAudioEncoderCore encoderCore;
             try {
-                encoderCore = new VideoEncoderCore(VIDEO_WIDTH, VIDEO_HEIGHT,
+                encoderCore = new VideoAudioEncoderCore(VIDEO_WIDTH, VIDEO_HEIGHT,
                         BIT_RATE, mOutputFile);
             } catch (IOException ioe) {
                 throw new RuntimeException(ioe);
