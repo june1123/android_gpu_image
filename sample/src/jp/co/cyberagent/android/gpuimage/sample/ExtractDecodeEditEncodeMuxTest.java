@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-package com.dbyjacob.media.test;
+package jp.co.cyberagent.android.gpuimage.sample;
 
 import android.annotation.TargetApi;
-import android.content.res.AssetFileDescriptor;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
@@ -25,7 +24,6 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
 import android.os.Environment;
-import android.provider.MediaStore;
 import android.test.AndroidTestCase;
 import android.util.Log;
 import android.view.Surface;

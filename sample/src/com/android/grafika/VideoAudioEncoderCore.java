@@ -33,15 +33,15 @@ import java.nio.ByteBuffer;
 
 /**
  * This class wraps up the core components used for surface-input video encoding.
- * <p>
+ * <p/>
  * Once created, frames are fed to the input surface.  Remember to provide the presentation
  * time stamp, and always call drainEncoder() before swapBuffers() to ensure that the
  * producer side doesn't get backed up.
- * <p>
+ * <p/>
  * This class is not thread-safe, with one exception: it is valid to use the input surface
  * on one thread, and drain the output on a different thread.
  */
-public class VideoAudioEncoderCore extends VideoEncoderCore{
+public class VideoAudioEncoderCore extends VideoEncoderCore {
     private static final String TAG = "VideoAudioEncoderCore";
     private static final boolean VERBOSE = true;
 
@@ -122,13 +122,13 @@ public class VideoAudioEncoderCore extends VideoEncoderCore{
             mEncoder = null;
         }
 
-        if( mAudioEncodingContext != null ) {
-            if( mAudioEncodingContext.audioEncoder != null ) {
+        if (mAudioEncodingContext != null) {
+            if (mAudioEncodingContext.audioEncoder != null) {
                 mAudioEncodingContext.audioEncoder.stop();
                 mAudioEncodingContext.audioEncoder.release();
             }
 
-            if( mAudioEncodingContext.audioRecord != null ) {
+            if (mAudioEncodingContext.audioRecord != null) {
                 mAudioEncodingContext.audioRecord.stop();
                 mAudioEncodingContext.audioRecord.release();
             }
@@ -144,13 +144,14 @@ public class VideoAudioEncoderCore extends VideoEncoderCore{
 
     private MediaFormat mEncoderOutputAudioFormat;
     private MediaFormat mEncoderOutputVideoFormat;
+
     /**
      * Extracts all pending data from the encoder and forwards it to the muxer.
-     * <p>
+     * <p/>
      * If endOfStream is not set, this returns when there is no more data to drain.  If it
      * is set, we send EOS to the encoder, and then iterate until we see EOS on the output.
      * Calling this with endOfStream set should be done once, right before stopping the muxer.
-     * <p>
+     * <p/>
      * We're just using the muxer to get a .mp4 file (instead of a raw H.264 stream).  We're
      * not recording audio.
      */
@@ -161,7 +162,7 @@ public class VideoAudioEncoderCore extends VideoEncoderCore{
         if (endOfStream) {
             if (VERBOSE) Log.d(TAG, "sending EOS to encoder");
             mEncoder.signalEndOfInputStream();
-            mAudioEncodingContext.audioRecorderDone = true;
+            mAudioEncodingContext.audioRecordStopped = true;
         }
 
         ByteBuffer[] encoderOutputBuffers = mEncoder.getOutputBuffers();
@@ -234,6 +235,22 @@ public class VideoAudioEncoderCore extends VideoEncoderCore{
         }
 
         encodeAudioLoop(mAudioEncodingContext);
+        // we have unhandled data...
+        if (endOfStream) {
+            // Wait until sent eos..
+            while (!mAudioEncodingContext.sentEos) {
+                try {
+                    Thread.sleep(10);
+                    encodeAudioLoop(mAudioEncodingContext);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            while (!mAudioEncodingContext.audioEncoderDone && mAudioEncodingContext.sentEos) {
+                encodeAudioLoop(mAudioEncodingContext);
+            }
+        }
 
         if (!mMuxerStarted && mEncoderOutputAudioFormat != null && mEncoderOutputVideoFormat != null) {
 
@@ -261,70 +278,120 @@ public class VideoAudioEncoderCore extends VideoEncoderCore{
 
     private void prepareAudioRecording() throws IOException {
 
-        if( mAudioEncodingContext == null ) {
+        if (mAudioEncodingContext == null) {
             mAudioEncodingContext = new AudioEncodingContext();
 
             MediaCodecInfo audioCodecInfo = selectCodec(OUTPUT_AUDIO_MIME_TYPE);
+
             MediaFormat outputAudioFormat = MediaFormat.createAudioFormat(
-                            OUTPUT_AUDIO_MIME_TYPE, OUTPUT_AUDIO_SAMPLE_RATE_HZ,
-                            OUTPUT_AUDIO_CHANNEL_COUNT);
+                    OUTPUT_AUDIO_MIME_TYPE, OUTPUT_AUDIO_SAMPLE_RATE_HZ,
+                    OUTPUT_AUDIO_CHANNEL_COUNT);
             outputAudioFormat.setInteger(MediaFormat.KEY_BIT_RATE, OUTPUT_AUDIO_BIT_RATE);
             outputAudioFormat.setInteger(MediaFormat.KEY_AAC_PROFILE, OUTPUT_AUDIO_AAC_PROFILE);
-
             outputAudioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 1024 * 100);
 
             // Create a MediaCodec for the desired codec, then configure it as an encoder with
             // our desired properties. Request a Surface to use for input.
             mAudioEncodingContext.audioEncoder = createAudioEncoder(audioCodecInfo, outputAudioFormat);
 
-            int minBufferSize = AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE, RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING);
-            mAudioEncodingContext.audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
-                    RECORDER_SAMPLERATE, RECORDER_CHANNELS,
-                    RECORDER_AUDIO_ENCODING, minBufferSize);
+            int minBufferSize = AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE, AudioFormat.CHANNEL_IN_DEFAULT, AudioFormat.ENCODING_PCM_16BIT);
             mAudioEncodingContext.minBufferSize = minBufferSize;
 
-            mAudioEncodingContext.audioRecord.startRecording();
+            mAudioEncodingContext.audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                    RECORDER_SAMPLERATE, RECORDER_CHANNELS,
+                    RECORDER_AUDIO_ENCODING, mAudioEncodingContext.minBufferSize);
 
-            mAudioEncodingContext.audioEncoderInputBuffers = mAudioEncodingContext.audioEncoder.getInputBuffers();
+            mAudioEncodingContext.audioRecord.startRecording();
+            new AudioRecordThread().start();
             mAudioEncodingContext.audioEncoderOutputBufferInfo = new MediaCodec.BufferInfo();
         }
+    }
+
+    class AudioRecordThread extends Thread {
+
+        @Override
+        public void run() {
+            super.run();
+
+            while (!mAudioEncodingContext.audioRecordStopped) {
+                try {
+                    final ByteBuffer buf = ByteBuffer.allocateDirect(mAudioEncodingContext.minBufferSize);
+                    int readBytes = mAudioEncodingContext.audioRecord.read(buf, mAudioEncodingContext.minBufferSize);
+                    if (readBytes > 0) {
+                        // set audio data to encoder
+                        buf.position(readBytes);
+                        buf.flip();
+                        encode(buf, readBytes, System.nanoTime() / 1000L);
+                    }
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                }
+            }
+
+            if (!mAudioEncodingContext.sentEos) {
+                encode(null, 0, System.nanoTime() / 1000L);
+            }
+
+            mAudioEncodingContext.audioRecorderDone = false;
+
+            if (VERBOSE) {
+                Log.d(TAG, "audio recoring thread terminated");
+            }
+        }
+
+        private void encode(ByteBuffer buf, int readBytes, long presentationTime) {
+            ByteBuffer[] inputBuffers = mAudioEncodingContext.audioEncoder.getInputBuffers();
+            while (!mAudioEncodingContext.audioRecorderDone) {
+
+                int encoderInputBufferIndex = mAudioEncodingContext.audioEncoder.dequeueInputBuffer(TIMEOUT_USEC);
+                if (encoderInputBufferIndex >= 0) {
+                    if (VERBOSE) {
+                        Log.d(TAG, "audio encoder: returned input buffer: " + encoderInputBufferIndex);
+                    }
+                    ByteBuffer encoderInputBuffer = inputBuffers[encoderInputBufferIndex];
+
+                    int readLen = readBytes;
+                    encoderInputBuffer.clear();
+                    if (buf != null) {
+                        encoderInputBuffer.put(buf);
+                    }
+
+                    if (readBytes <= 0) {
+                        if (VERBOSE) Log.d(TAG, "sent eos to audio encoder");
+                        mAudioEncodingContext.audioEncoder.queueInputBuffer(encoderInputBufferIndex, 0, 0, presentationTime, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                        mAudioEncodingContext.sentEos = true;
+                    } else {
+                        mAudioEncodingContext.audioEncoder.queueInputBuffer(encoderInputBufferIndex, 0, readLen, presentationTime, 0);
+                    }
+
+                    break;
+                } else if (encoderInputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    if (VERBOSE) Log.d(TAG, "no audio encoder input buffer");
+                }
+            }
+        }
+
     }
 
     private static final int TIMEOUT_USEC = 10000;
 
     class AudioEncodingContext {
+        boolean audioRecordStopped = false;
         boolean audioRecorderDone = false;
         boolean audioEncoderDone = false;
         MediaCodec.BufferInfo audioEncoderOutputBufferInfo;
         MediaCodec audioEncoder;
 
-        ByteBuffer [] audioEncoderInputBuffers;
-
         int audioEncodedFrameCount;
 
         AudioRecord audioRecord;
-        long audioStartTime = 0;
         public int minBufferSize;
+        boolean sentEos = false;
     }
-
-    public static final int SAMPLE_RATE = 44100;
-    public static final int CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO;
-    public static final int AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT;
-    public static final int FRAMES_PER_BUFFER = 24; // 1 sec @ 1024 samples/frame (aac)
-    private static final int SAMPLES_PER_FRAME = 1024;
 
     private static final int RECORDER_SAMPLERATE = 44100;
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
     private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
-    private static final int BUFFER_ELEMENTS_TO_REC = 1024; // want to play 2048 (2K) since 2 bytes we use only 1024
-    private static final int BYTES_PER_ELEMENT = 2; // 2 bytes in 16bit format;
-
-    private void encodeLoopWrap() {
-
-        while( true ) {
-            encodeAudioLoop(mAudioEncodingContext);
-        }
-    }
 
     private void encodeAudioLoop(AudioEncodingContext encodeContext) {
 
@@ -333,63 +400,9 @@ public class VideoAudioEncoderCore extends VideoEncoderCore{
             Log.d(TAG, "encode audio loop: " + encodeContext.audioEncoderDone);
         }
 
-        while (!encodeContext.audioEncoderDone) {
-            int encoderInputBufferIndex = encodeContext.audioEncoder.dequeueInputBuffer(TIMEOUT_USEC);
-            if (encoderInputBufferIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                if (VERBOSE) Log.d(TAG, "no audio encoder input buffer");
-                break;
-            }
-            if (VERBOSE) {
-                Log.d(TAG, "audio encoder: returned input buffer: " + encoderInputBufferIndex);
-            }
-            ByteBuffer encoderInputBuffer = encodeContext.audioEncoderInputBuffers[encoderInputBufferIndex];
-
-            byte[] dataBuffer = new byte[encodeContext.minBufferSize];
-            int readLength = encodeContext.audioRecord.read(dataBuffer, 0, encodeContext.minBufferSize);
-            if (readLength == AudioRecord.ERROR_BAD_VALUE || readLength == AudioRecord.ERROR_INVALID_OPERATION) {
-                Log.e("AudioSoftwarePoller", "Read error");
-            } else {
-                if (VERBOSE) {
-                    Log.d(TAG, " audio read from record : " + readLength);
-                }
-                long curNanoTime = System.nanoTime();
-                if( encodeContext.audioStartTime == 0 ) {
-                    encodeContext.audioStartTime = curNanoTime;
-                }
-
-                long presentationTime = (curNanoTime ) / 1000;
-                if (readLength >= 0) {
-                    encoderInputBuffer.position(0);
-                    encoderInputBuffer.put(dataBuffer, 0, readLength);
-
-                    if (VERBOSE) {
-                        Log.d(TAG, " put data to encoder record : " + readLength + " / time : " + presentationTime);
-                    }
-
-                    if( encodeContext.audioRecorderDone ) {
-                        encodeContext.audioEncoder.queueInputBuffer(
-                                encoderInputBufferIndex,
-                                0,
-                                readLength,
-                                presentationTime,
-                                MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                    } else {
-                        encodeContext.audioEncoder.queueInputBuffer(
-                                encoderInputBufferIndex,
-                                0,
-                                readLength,
-                                presentationTime,
-                                0);
-                    }
-                }
-                // We enqueued a pending frame, let's try something else next.
-                break;
-            }
-        }
-
         // Poll frames from the audio encoder and send them to the muxer.
         ByteBuffer[] encoderOutputBuffers = encodeContext.audioEncoder.getOutputBuffers();
-        while (!encodeContext.audioEncoderDone
+        while ((!encodeContext.audioEncoderDone)
                 && (mEncoderOutputAudioFormat == null || mMuxerStarted)) {
 
             int encoderOutputBufferIndex = encodeContext.audioEncoder.dequeueOutputBuffer(
@@ -440,6 +453,7 @@ public class VideoAudioEncoderCore extends VideoEncoderCore{
                 if (encoderBufferInfo.size != 0) {
                     encoderOutputBuffer.position(encoderBufferInfo.offset);
                     encoderOutputBuffer.limit(encoderBufferInfo.offset + encoderBufferInfo.size);
+
                     mMuxer.writeSampleData(
                             mOutputAudioTrack, encoderOutputBuffer, encoderBufferInfo);
                 }
@@ -485,5 +499,4 @@ public class VideoAudioEncoderCore extends VideoEncoderCore{
         encoder.start();
         return encoder;
     }
-
 }

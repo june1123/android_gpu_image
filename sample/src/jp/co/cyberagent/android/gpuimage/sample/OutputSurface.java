@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.dbyjacob.media.test;
+package jp.co.cyberagent.android.gpuimage.sample;
 
 import android.graphics.SurfaceTexture;
 import android.opengl.EGL14;
@@ -85,9 +85,6 @@ class OutputSurface implements SurfaceTexture.OnFrameAvailableListener {
         this.surfaceHeight = surfaceHeight;
         this.contentWidth = contentWidth;
         this.contentHeight = contentHeight;
-
-        //eglSetup(width, height);
-        //makeCurrent();
 
         setup(gpuImageRenderer);
     }

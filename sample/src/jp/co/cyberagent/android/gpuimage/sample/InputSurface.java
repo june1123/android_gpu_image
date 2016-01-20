@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.dbyjacob.media.test;
+package jp.co.cyberagent.android.gpuimage.sample;
 
 import android.opengl.EGL14;
 import android.opengl.EGLConfig;

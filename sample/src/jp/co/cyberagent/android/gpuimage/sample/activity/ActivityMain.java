@@ -17,7 +17,6 @@
 package jp.co.cyberagent.android.gpuimage.sample.activity;
 
 import jp.co.cyberagent.android.gpuimage.sample.R;
-import jp.co.cyberagent.android.gpuimage.sample.audiotest.HWRecorderActivity;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -33,7 +32,6 @@ public class ActivityMain extends Activity implements OnClickListener {
         setContentView(R.layout.activity_main);
         findViewById(R.id.button_gallery).setOnClickListener(this);
         findViewById(R.id.button_camera).setOnClickListener(this);
-        findViewById(R.id.button_camera_record).setOnClickListener(this);
         findViewById(R.id.button_video).setOnClickListener(this);
         findViewById(R.id.button_recording).setOnClickListener(this);
     }
@@ -45,10 +43,6 @@ public class ActivityMain extends Activity implements OnClickListener {
                 startActivity(ActivityGallery.class);
                 break;
             case R.id.button_camera:
-                startActivity(ActivityCamera.class);
-                break;
-
-            case R.id.button_camera_record:
                 startActivity(ActivityCameraRecording.class);
                 break;
 
@@ -56,9 +50,6 @@ public class ActivityMain extends Activity implements OnClickListener {
                 startActivity(ActivityVideo.class);
                 break;
 
-            case R.id.button_recording:
-                startActivity(HWRecorderActivity.class);
-                break;
             default:
                 break;
         }
